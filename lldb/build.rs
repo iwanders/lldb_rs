@@ -5,10 +5,14 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
+    let lldb_lib = "lldb-13";
+    let llvm_dir = "/usr/lib/llvm-13";
+
+    println!("cargo:rustc-link-lib={lldb_lib}");
+    println!("cargo:rustc-link-search=/usr/lib/x86_64-linux-gnu");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/lldb_api.h");
 
-    let llvm_dir = "/usr/lib/llvm-13";
 
     // Actually lives in:
     // /usr/lib/llvm-13/include/lldb/API/LLDB.h

@@ -4,3 +4,18 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
+#[cfg(test)]
+mod test
+{
+    use super::*;
+
+    #[test]
+    fn try_version()
+    {
+        unsafe {
+
+            let v = std::ffi::CStr::from_ptr(lldb_SBDebugger::GetVersionString());
+            println!("Version: {v:?}");
+        }
+    }
+}
