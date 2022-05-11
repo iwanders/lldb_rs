@@ -1,0 +1,13 @@
+[package]
+name = "lldb"
+version = "0.0.0"
+authors = ["Ivor Wanders <ivor@iwanders.net>"]
+edition = "2021"
+# Not too sure on the license, llvm itself is Apache-2.0 with exceptions, not sure if this can be
+# Apache-2.0 without exceptions.
+license = "Apache-2.0"
+build = "build.rs"
+
+[build-dependencies]
+bindgen = "0.59.2"
+cc = "1.0.73"
