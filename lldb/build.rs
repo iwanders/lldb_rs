@@ -25,6 +25,8 @@ fn main() {
         // Location where the lldb api lives.
         .clang_arg(format!("-I{llvm_dir}/include/"))
         .clang_arg("-xc++")
+        .opaque_type("lldb::SB*")
+        .opaque_type("lldb::SBDebugger")
         // Specify we're only interested in SB* things.
         .allowlist_type("lldb::SB.*")
         .generate()

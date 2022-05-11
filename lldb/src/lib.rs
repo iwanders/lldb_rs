@@ -18,4 +18,11 @@ mod test
             println!("Version: {v:?}");
         }
     }
+    #[test]
+    fn try_debugger()
+    {
+        unsafe {
+            let mut dbg = lldb_SBDebugger::Create();
+        }
+    }
 }
