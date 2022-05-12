@@ -22,6 +22,7 @@ mod test
     fn try_debugger()
     {
         unsafe {
+            lldb_SBDebugger::Initialize();
             let mut dbg = lldb_SBDebugger::Create();
         }
     }
