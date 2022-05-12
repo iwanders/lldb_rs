@@ -25,10 +25,14 @@ fn main() {
         // Location where the lldb api lives.
         .clang_arg(format!("-I{llvm_dir}/include/"))
         .clang_arg("-xc++")
-        .opaque_type("lldb::SB*")
-        .opaque_type("lldb::SBDebugger")
         // Specify we're only interested in SB* things.
         .allowlist_type("lldb::SB.*")
+        .allowlist_type("std::shared_ptr")
+        .allowlist_type("std::unique_ptr")
+        .allowlist_type("std::weak_ptr")
+        .allowlist_type("simple_shared_ptr")
+        .allowlist_type("simple_unique_ptr")
+        .allowlist_type("simple_weak_ptr")
         .generate()
         .expect("Unable to generate bindings");
 
