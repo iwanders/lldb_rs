@@ -35,6 +35,8 @@ fn main() {
         .allowlist_type("simple_weak_ptr")
         // Convert size_t's into usize, it's the same for x86_64.
         . size_t_is_usize(true)
+        // .disable_name_namespacing()
+        .enable_cxx_namespaces()
         .generate()
         .expect("Unable to generate bindings");
 

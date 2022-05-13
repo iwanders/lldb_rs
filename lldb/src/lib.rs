@@ -17,7 +17,7 @@ mod test
     {
         unsafe {
 
-            let v = std::ffi::CStr::from_ptr(lldb_SBDebugger::GetVersionString());
+            let v = std::ffi::CStr::from_ptr(root::lldb::SBDebugger::GetVersionString());
             println!("Version: {v:?}");
         }
     }
@@ -25,8 +25,8 @@ mod test
     fn try_debugger()
     {
         unsafe {
-            lldb_SBDebugger::Initialize();
-            let mut dbg = lldb_SBDebugger::Create();
+            root::lldb::SBDebugger::Initialize();
+            let mut dbg = root::lldb::SBDebugger::Create();
         }
     }
 }
