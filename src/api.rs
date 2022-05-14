@@ -18,11 +18,10 @@ static START: Once = Once::new();
 
 // https://lldb.llvm.org/python_api/lldb.SBDebugger.html
 // https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBDebugger.h
-use std::pin::Pin;
-use std::boxed::Box;
+
 
 pub struct SBDebugger {
-    dbg: Pin<Box<bindings::lldb::SBDebugger>>,
+    dbg: bindings::lldb::SBDebugger,
 }
 
 impl SBDebugger {
@@ -32,7 +31,7 @@ impl SBDebugger {
             bindings::lldb::SBDebugger::Initialize();
         });
         SBDebugger {
-            dbg: Pin::new(Box::new(unsafe { bindings::lldb::SBDebugger::Create() })),
+            dbg: unsafe { bindings::lldb::SBDebugger::Create() },
         }
     }
 }
