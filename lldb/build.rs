@@ -13,7 +13,6 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/lldb_api.h");
 
-
     // Actually lives in:
     // /usr/lib/llvm-13/include/lldb/API/LLDB.h
     let bindings = bindgen::Builder::default()
@@ -34,7 +33,7 @@ fn main() {
         .allowlist_type("simple_unique_ptr")
         .allowlist_type("simple_weak_ptr")
         // Convert size_t's into usize, it's the same for x86_64.
-        . size_t_is_usize(true)
+        .size_t_is_usize(true)
         // .disable_name_namespacing()
         .enable_cxx_namespaces()
         .generate()
