@@ -3,6 +3,7 @@ pub mod api;
 use api::ffi::lldb;
 use autocxx::prelude::*;
 
+/*
 // Singleton to ensure we call initialize once before we create the first debugger.
 use std::sync::Once;
 static START: Once = Once::new();
@@ -10,7 +11,7 @@ static START: Once = Once::new();
 // https://lldb.llvm.org/python_api/lldb.SBDebugger.html
 // https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBDebugger.h
 
-/*
+
 pub struct SBDebugger {
     dbg: Box<lldb::SBDebugger>,
 }
@@ -42,10 +43,10 @@ impl std::ops::DerefMut for SBDebugger {
         &mut self.dbg
     }
 }*/
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::pin::Pin;
 
     #[test]
     fn try_version() {
@@ -69,7 +70,9 @@ mod test {
 
             {
                 let mut z = dbg.as_mut().GetDummyTarget().within_box();
-                println!("{:?}", std::ffi::CStr::from_ptr(z.as_mut().GetTriple()));
+                let triple = std::ffi::CStr::from_ptr(z.as_mut().GetTriple());
+                println!("{:?}", triple);
+                assert_eq!("x86_64-pc-linux-gnu", triple.to_str().expect("ascii only"));
             }
         }
     }
