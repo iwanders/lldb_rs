@@ -66,7 +66,9 @@ mod test {
     fn try_debugger() {
         unsafe {
             bindings::lldb::SBDebugger::Initialize();
-            let mut _dbg = bindings::lldb::SBDebugger::Create();
+            let mut dbg = bindings::lldb::SBDebugger::Create();
+            dbg.SetAsync(true);
+            assert_eq!(true, dbg.GetAsync());
         }
     }
 }
