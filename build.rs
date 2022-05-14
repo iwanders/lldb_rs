@@ -4,6 +4,23 @@ extern crate cc;
 use std::env;
 use std::path::PathBuf;
 
+fn main() -> miette::Result<()> {
+    let lldb_lib = "lldb-13";
+    let llvm_dir = "/usr/lib/llvm-13";
+    let p = std::path::PathBuf::from(format!("{llvm_dir}/include/"));
+    let s1 = std::path::PathBuf::from("/usr/include/c++/7/");
+    let s2 = std::path::PathBuf::from("/usr/include/x86_64-linux-gnu/c++/7/");
+
+    let path = std::path::PathBuf::from("src"); // include path
+    let mut b = autocxx_build::Builder::new("src/api.rs", &[&path, &p, &s1, &s2]).build()?;
+    b.flag_if_supported("-std=c++14")
+        .includes(&[&p, &path, &s1, &s2])
+        .compile("autocxx-lldb"); // arbitrary library name, pick anything
+    println!("cargo:rerun-if-changed=src/api.rs");
+    // Add instructions to link to any C++ libraries you need.
+    Ok(())
+}
+/*
 fn main() {
     let lldb_lib = "lldb-13";
     let llvm_dir = "/usr/lib/llvm-13";
@@ -44,3 +61,4 @@ fn main() {
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
 }
+*/
