@@ -8,6 +8,7 @@ use autocxx::prelude::*;
 use std::sync::Once;
 static START: Once = Once::new();
 
+// https://lldb.llvm.org/python_api/
 // https://lldb.llvm.org/python_api/lldb.SBDebugger.html
 // https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBDebugger.h
 
@@ -58,22 +59,20 @@ mod test {
 
     #[test]
     fn try_debugger() {
-        unsafe {
-            lldb::SBDebugger::Initialize();
-            let mut dbg = lldb::SBDebugger::Create().within_box();
-            dbg.as_mut().SetAsync(true);
-            assert_eq!(true, dbg.as_mut().GetAsync());
-            dbg.as_mut().SetAsync(false);
-            assert_eq!(false, dbg.as_mut().GetAsync());
-            dbg.as_mut().SetAsync(true);
-            assert_eq!(true, dbg.as_mut().GetAsync());
+        lldb::SBDebugger::Initialize();
+        let mut dbg = lldb::SBDebugger::Create().within_box();
+        dbg.as_mut().SetAsync(true);
+        assert_eq!(true, dbg.as_mut().GetAsync());
+        dbg.as_mut().SetAsync(false);
+        assert_eq!(false, dbg.as_mut().GetAsync());
+        dbg.as_mut().SetAsync(true);
+        assert_eq!(true, dbg.as_mut().GetAsync());
 
-            {
-                let mut z = dbg.as_mut().GetDummyTarget().within_box();
-                let triple = std::ffi::CStr::from_ptr(z.as_mut().GetTriple());
-                println!("{:?}", triple);
-                assert_eq!("x86_64-pc-linux-gnu", triple.to_str().expect("ascii only"));
-            }
+        unsafe {
+            let mut z = dbg.as_mut().GetDummyTarget().within_box();
+            let triple = std::ffi::CStr::from_ptr(z.as_mut().GetTriple());
+            println!("{:?}", triple);
+            assert_eq!("x86_64-pc-linux-gnu", triple.to_str().expect("ascii only"));
         }
     }
 }
