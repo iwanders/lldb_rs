@@ -18,27 +18,39 @@ static START: Once = Once::new();
 
 // https://lldb.llvm.org/python_api/lldb.SBDebugger.html
 // https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBDebugger.h
+use std::pin::Pin;
+use std::boxed::Box;
+
 pub struct SBDebugger {
-    dbg: lldb::SBDebugger,
+    dbg: Pin<Box<bindings::lldb::SBDebugger>>,
 }
 
 impl SBDebugger {
     pub fn new() -> Self {
         START.call_once(|| unsafe {
-            lldb::SBDebugger::Initialize();
+            println!("Initialize.");
+            bindings::lldb::SBDebugger::Initialize();
         });
         SBDebugger {
-            dbg: unsafe { lldb::SBDebugger::Create() },
-        }
-    }
-
-    pub fn set_async(&mut self, state: bool) {
-        unsafe {
-            self.dbg.SetAsync(state);
+            dbg: Pin::new(Box::new(unsafe { bindings::lldb::SBDebugger::Create() })),
         }
     }
 }
 
+// Sugar to dereference to get the unsafe thing.
+impl std::ops::Deref for SBDebugger {
+    type Target = bindings::lldb::SBDebugger;
+
+    fn deref(&self) -> &Self::Target {
+        &self.dbg
+    }
+}
+impl std::ops::DerefMut for SBDebugger {
+
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.dbg
+    }
+}
 #[cfg(test)]
 mod test {
     use super::*;
