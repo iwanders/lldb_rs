@@ -12,11 +12,9 @@ pub mod bindings {
 
 use bindings::lldb;
 
-
 // Singleton to ensure we call initialize once before we create the first debugger.
 use std::sync::Once;
 static START: Once = Once::new();
-
 
 // https://lldb.llvm.org/python_api/lldb.SBDebugger.html
 // https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBDebugger.h
@@ -34,12 +32,12 @@ impl SBDebugger {
         }
     }
 
-    pub fn set_async(&mut self, state: bool)
-    {
-        unsafe{ self.dbg.SetAsync(state); }
+    pub fn set_async(&mut self, state: bool) {
+        unsafe {
+            self.dbg.SetAsync(state);
+        }
     }
 }
-
 
 #[cfg(test)]
 mod test {
@@ -57,7 +55,7 @@ mod test {
     fn try_debugger() {
         unsafe {
             bindings::lldb::SBDebugger::Initialize();
-            let mut dbg = bindings::lldb::SBDebugger::Create();
+            let mut _dbg = bindings::lldb::SBDebugger::Create();
         }
     }
 }
