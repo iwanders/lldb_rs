@@ -59,8 +59,11 @@ mod test {
     fn try_debugger() {
         unsafe {
             lldb::SBDebugger::Initialize();
-            // let mut dbg : Pin<Box<lldb::SBDebugger>> = Pin::new(Box::new(lldb::SBDebugger::Create()));
             let mut dbg  = lldb::SBDebugger::Create().within_box();
+            dbg.as_mut().SetAsync(true);
+            assert_eq!(true, dbg.as_mut().GetAsync());
+            dbg.as_mut().SetAsync(false);
+            assert_eq!(false, dbg.as_mut().GetAsync());
             dbg.as_mut().SetAsync(true);
             assert_eq!(true, dbg.as_mut().GetAsync());
         }
