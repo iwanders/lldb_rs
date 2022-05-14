@@ -28,5 +28,10 @@ class simple_weak_ptr {
 
 
 static_assert(sizeof(simple_shared_ptr<int>) == sizeof(std::shared_ptr<int>), "");
+static_assert(alignof(simple_shared_ptr<int>) == alignof(std::shared_ptr<int>), "");
+
+static_assert(sizeof(simple_unique_ptr<int>) == sizeof(std::unique_ptr<int>), "");
 static_assert(alignof(simple_unique_ptr<int>) == alignof(std::unique_ptr<int>), "");
+
+static_assert(sizeof(simple_weak_ptr<int>) == sizeof(std::weak_ptr<int>), "");
 static_assert(alignof(simple_weak_ptr<int>) == alignof(std::weak_ptr<int>), "");
