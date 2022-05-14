@@ -8,9 +8,17 @@ edition = "2021"
 license = "Apache-2.0"
 build = "build.rs"
 
+
+[dependencies]
+autocxx = "0.22.0"
+cxx = "1.0"
+
 [build-dependencies]
 bindgen = "0.59.2"
 cc = "1.0.73"
+autocxx-build = "0.22.0"
+miette = { version="4.3", features=["fancy"] } # optional but gives
 
 [lib]
 doctest = false
+

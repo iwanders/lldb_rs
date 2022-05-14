@@ -1,74 +1,87 @@
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
-#![allow(rustdoc::broken_intra_doc_links)]
-#![allow(rustdoc::invalid_rust_codeblocks)]
-#![allow(deref_nullptr)]
-#![allow(improper_ctypes)] // something returns an u128, ignore it.
-pub mod bindings {
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-    pub use root::*;
+use autocxx::prelude::*; // use all the main autocxx functions
+
+include_cpp! {
+    #include "lldb_api.h"
+    safety!(unsafe) // see details of unsafety policies described in the 'safety' section of the book
+    generate!("lldb::SBAddress")
+    generate!("lldb::SBBlock")
+    generate!("lldb::SBBreakpoint")
+    generate!("lldb::SBBreakpointLocation")
+    generate!("lldb::SBBreakpointName")
+    generate!("lldb::SBBreakpointNameImpl")
+    generate!("lldb::SBBroadcaster")
+    generate!("lldb::SBCommand")
+    generate!("lldb::SBCommandInterpreter")
+    generate!("lldb::SBCommandInterpreterRunOptions")
+    generate!("lldb::SBCommandInterpreterRunResult")
+    generate!("lldb::SBCommandPluginInterface")
+    generate!("lldb::SBCommandReturnObject")
+    generate!("lldb::SBCommunication")
+    generate!("lldb::SBCompileUnit")
+    generate!("lldb::SBData")
+    generate!("lldb::SBDebugger")
+    generate!("lldb::SBDeclaration")
+    generate!("lldb::SBEnvironment")
+    generate!("lldb::SBError")
+    generate!("lldb::SBEvent")
+    generate!("lldb::SBEventList")
+    generate!("lldb::SBExecutionContext")
+    generate!("lldb::SBExpressionOptions")
+    generate!("lldb::SBFile")
+    generate!("lldb::SBFileSpec")
+    generate!("lldb::SBFileSpecList")
+    generate!("lldb::SBFrame")
+    generate!("lldb::SBFunction")
+    generate!("lldb::SBHostOS")
+    generate!("lldb::SBInstruction")
+    generate!("lldb::SBInstructionList")
+    generate!("lldb::SBLanguageRuntime")
+    generate!("lldb::SBLaunchInfo")
+    generate!("lldb::SBLineEntry")
+    generate!("lldb::SBListener")
+    generate!("lldb::SBMemoryRegionInfo")
+    generate!("lldb::SBMemoryRegionInfoList")
+    generate!("lldb::SBModule")
+    generate!("lldb::SBModuleSpec")
+    generate!("lldb::SBModuleSpecList")
+    generate!("lldb::SBProcess")
+    generate!("lldb::SBProcessInfo")
+    generate!("lldb::SBQueue")
+    generate!("lldb::SBQueueItem")
+    generate!("lldb::SBSection")
+    generate!("lldb::SBSourceManager")
+    generate!("lldb::SBStream")
+    generate!("lldb::SBStringList")
+    generate!("lldb::SBStructuredData")
+    generate!("lldb::SBSymbol")
+    generate!("lldb::SBSymbolContext")
+    generate!("lldb::SBSymbolContextList")
+    generate!("lldb::SBTarget")
+    generate!("lldb::SBThread")
+    generate!("lldb::SBThreadCollection")
+    generate!("lldb::SBThreadPlan")
+    generate!("lldb::SBTrace")
+    generate!("lldb::SBType")
+    generate!("lldb::SBTypeCategory")
+    generate!("lldb::SBTypeEnumMember")
+    generate!("lldb::SBTypeEnumMemberList")
+    generate!("lldb::SBTypeFilter")
+    // generate!("lldb::SBTypeFormat")
+    generate!("lldb::SBTypeMemberFunction")
+    generate!("lldb::SBTypeNameSpecifier")
+    generate!("lldb::SBTypeSummary")
+    generate!("lldb::SBTypeSummaryOptions")
+    generate!("lldb::SBTypeSynthetic")
+    generate!("lldb::SBTypeList")
+    generate!("lldb::SBValue")
+    generate!("lldb::SBValueList")
+    generate!("lldb::SBVariablesOptions")
+    generate!("lldb::SBWatchpoint")
+    generate!("lldb::SBUnixSignals")
+    // generate_ns!("lldb") // breaks on SBTypeFormat::Type.
+    name!(internal_ffi)
 }
 
-use bindings::lldb;
-
-// Singleton to ensure we call initialize once before we create the first debugger.
-use std::sync::Once;
-static START: Once = Once::new();
-
-// https://lldb.llvm.org/python_api/lldb.SBDebugger.html
-// https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBDebugger.h
-
-
-pub struct SBDebugger {
-    dbg: bindings::lldb::SBDebugger,
-}
-
-impl SBDebugger {
-    pub fn new() -> Self {
-        START.call_once(|| unsafe {
-            println!("Initialize.");
-            bindings::lldb::SBDebugger::Initialize();
-        });
-        SBDebugger {
-            dbg: unsafe { bindings::lldb::SBDebugger::Create() },
-        }
-    }
-}
-
-// Sugar to dereference to get the unsafe thing.
-impl std::ops::Deref for SBDebugger {
-    type Target = bindings::lldb::SBDebugger;
-
-    fn deref(&self) -> &Self::Target {
-        &self.dbg
-    }
-}
-impl std::ops::DerefMut for SBDebugger {
-
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.dbg
-    }
-}
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn try_version() {
-        unsafe {
-            let v = std::ffi::CStr::from_ptr(bindings::lldb::SBDebugger::GetVersionString());
-            println!("Version: {v:?}");
-        }
-    }
-
-    #[test]
-    fn try_debugger() {
-        unsafe {
-            bindings::lldb::SBDebugger::Initialize();
-            let mut dbg = bindings::lldb::SBDebugger::Create();
-            dbg.SetAsync(true);
-            assert_eq!(true, dbg.GetAsync());
-        }
-    }
+pub mod ffi {
+    pub use super::internal_ffi::*;
 }
