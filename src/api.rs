@@ -13,7 +13,6 @@ include_cpp! {
     safety!(unsafe) // see details of unsafety policies described in the 'safety' section of the book
     generate!("lldb::SBDebugger")
     name!(internal_ffi)
-    instantiable!("lldb::SBDebugger")
 }
 
 pub mod ffi

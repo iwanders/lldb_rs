@@ -1,5 +1,6 @@
 pub mod api;
 
+use autocxx::prelude::*;
 use api::ffi::lldb;
 
 // Singleton to ensure we call initialize once before we create the first debugger.
@@ -44,6 +45,7 @@ impl std::ops::DerefMut for SBDebugger {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::pin::Pin;
 
     #[test]
     fn try_version() {
@@ -57,9 +59,10 @@ mod test {
     fn try_debugger() {
         unsafe {
             lldb::SBDebugger::Initialize();
-            let mut dbg = lldb::SBDebugger::Create();
-            dbg.SetAsync(true);
-            assert_eq!(true, dbg.GetAsync());
+            // let mut dbg : Pin<Box<lldb::SBDebugger>> = Pin::new(Box::new(lldb::SBDebugger::Create()));
+            let mut dbg  = lldb::SBDebugger::Create().within_box();
+            dbg.as_mut().SetAsync(true);
+            assert_eq!(true, dbg.as_mut().GetAsync());
         }
     }
 }
