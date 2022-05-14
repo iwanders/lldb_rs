@@ -1,7 +1,7 @@
 pub mod api;
 
-use autocxx::prelude::*;
 use api::ffi::lldb;
+use autocxx::prelude::*;
 
 // Singleton to ensure we call initialize once before we create the first debugger.
 use std::sync::Once;
@@ -59,13 +59,18 @@ mod test {
     fn try_debugger() {
         unsafe {
             lldb::SBDebugger::Initialize();
-            let mut dbg  = lldb::SBDebugger::Create().within_box();
+            let mut dbg = lldb::SBDebugger::Create().within_box();
             dbg.as_mut().SetAsync(true);
             assert_eq!(true, dbg.as_mut().GetAsync());
             dbg.as_mut().SetAsync(false);
             assert_eq!(false, dbg.as_mut().GetAsync());
             dbg.as_mut().SetAsync(true);
             assert_eq!(true, dbg.as_mut().GetAsync());
+
+            {
+                let mut z = dbg.as_mut().GetDummyTarget().within_box();
+                println!("{:?}", std::ffi::CStr::from_ptr(z.as_mut().GetTriple()));
+            }
         }
     }
 }
