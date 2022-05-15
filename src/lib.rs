@@ -3,6 +3,8 @@ pub mod api;
 use api::ffi::lldb;
 use autocxx::prelude::*;
 
+pub use autocxx;
+
 /*
 // Singleton to ensure we call initialize once before we create the first debugger.
 use std::sync::Once;

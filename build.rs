@@ -28,7 +28,7 @@ fn main() -> miette::Result<()> {
 
     let path = std::path::PathBuf::from("src"); // include path
     let mut b = autocxx_build::Builder::new("src/api.rs", &[&path, &include_p, &s1, &s2])
-        .extra_clang_args(&[&format!("-L{lldb_lib_dir}"), &format!("-l{lldb_lib}")])
+        // .extra_clang_args(&[&format!("-L{lldb_lib_dir}"), &format!("-l{lldb_lib}")])
         .build()?;
 
     b.flag_if_supported("-std=c++14")
