@@ -9,7 +9,7 @@ pub struct Event {
 
 impl Event {
     /// Create a new Event wrapping the provided SBEvent.
-    pub fn new(event: UniquePtr<bindings::SBEvent>) -> Self {
+    pub fn from(event: UniquePtr<bindings::SBEvent>) -> Self {
         Event { event }
     }
 
@@ -63,7 +63,7 @@ pub struct Error {
 
 impl Error {
     /// Create a new Event wrapping the provided SBError.
-    pub fn new(err: UniquePtr<bindings::SBError>) -> Self {
+    pub fn from(err: UniquePtr<bindings::SBError>) -> Self {
         Error { err }
     }
 
