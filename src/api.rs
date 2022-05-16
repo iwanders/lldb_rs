@@ -1,3 +1,7 @@
+
+#![allow(rustdoc::broken_intra_doc_links)]
+#![allow(rustdoc::invalid_rust_codeblocks)]
+
 use autocxx::prelude::*; // use all the main autocxx functions
 
 include_cpp! {
