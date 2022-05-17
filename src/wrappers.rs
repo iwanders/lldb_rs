@@ -149,16 +149,6 @@ fn wrap<T: autocxx::WithinUniquePtr> (z: T) -> Carrier<T::Inner>
     z.within_unique_ptr()
 }
 
-trait Process : autocxx::PinMut<bindings::SBProcess> {
-    fn thread(&mut self, id: usize) -> Carrier<bindings::SBThread>
-    {
-        wrap(self.pin_mut().GetThreadAtIndex(id))
-    }
-}
-impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> { }
-
-
-
 macro_rules! handle_box_and_uniqueptr {
     ($t:ty) => {
         impl std::convert::AsRef<$t>  for UniquePtr<$t>
@@ -176,7 +166,6 @@ macro_rules! handle_box_and_uniqueptr {
 
         }
 
-
         impl std::convert::AsRef<$t>  for Pin<Box<$t>>
         {   fn as_ref(&self) -> &$t
             {
@@ -192,7 +181,54 @@ macro_rules! handle_box_and_uniqueptr {
         }
     }
 }
+
 handle_box_and_uniqueptr!(bindings::SBProcess);
+// Actual implementations now follow.
+trait Process : autocxx::PinMut<bindings::SBProcess> {
+    fn thread(&mut self, id: usize) -> Carrier<bindings::SBThread>
+    {
+        wrap(self.pin_mut().GetThreadAtIndex(id))
+    }
+}
+impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> { }
+
+
+handle_box_and_uniqueptr!(bindings::SBThread);
+trait Thread : autocxx::PinMut<bindings::SBThread> {
+    fn frame(&mut self, id: u32) -> Carrier<bindings::SBFrame>
+    {
+        wrap(self.pin_mut().GetFrameAtIndex(id))
+    }
+}
+impl<T> Thread for T where T: autocxx::PinMut<bindings::SBThread> { }
+
+
+handle_box_and_uniqueptr!(bindings::SBFrame);
+trait Frame : autocxx::PinMut<bindings::SBFrame> {
+    fn find_register(&mut self, name: &str) -> Carrier<bindings::SBValue>
+    {
+        let reg = std::ffi::CString::new(name).expect("no null bytes expected");
+        wrap(unsafe{self.pin_mut().FindRegister(reg.as_ptr())})
+    }
+}
+impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> { }
+
+
+handle_box_and_uniqueptr!(bindings::SBValue);
+trait Value : autocxx::PinMut<bindings::SBValue> {
+    fn get_value_as_unsigned(&mut self) -> Result<u64, Box<Error>>
+    {
+        let mut e =  Error::new();
+        let res = self.pin_mut().GetValueAsUnsigned(e.pin_mut(), 0 );
+        if e.is_success()
+        {
+            return Ok(res);
+        }
+        Err(e.into_box())
+    }
+}
+impl<T> Value for T where T: autocxx::PinMut<bindings::SBValue> { }
+
 
 
 #[cfg(test)]
@@ -204,12 +240,20 @@ mod test {
     #[test]
     fn test_process_box() {
         let mut p = lldb::SBProcess::new().within_box();
-        p.thread(0);
+        let mut t = p.thread(0);
+        let mut f = t.frame(0);
+        let mut reg = f.find_register("edx");
+        let v = reg.get_value_as_unsigned();
+        assert!(v.is_err());
     }
     #[test]
     fn test_process_unique_ptr() {
         let mut p = lldb::SBProcess::new().within_unique_ptr();
-        p.thread(0);
+        let mut t = p.thread(0);
+        let mut f = t.frame(0);
+        let mut reg = f.find_register("edx");
+        let v = reg.get_value_as_unsigned();
+        assert!(v.is_err());
     }
 
 }
