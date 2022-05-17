@@ -138,19 +138,64 @@ impl std::fmt::Debug for Error {
 }
 
 
+// We could really benefit from:
+// https://github.com/rust-lang/rust/pull/96709
+// To support bindings that support both Pin<Box<T>> as well as UniquePtr<T>
 
-trait WrappedProcess
-{
-    fn thread(self, id: usize) -> UniquePtr<bindings::SBThread>;
+/*
+pub trait Process {
+    type Wrapper;
+
+    fn thread(self, id: usize) -> Self::Wrapper<bindings::SBThread>;
 }
+impl Process for UniquePtr<bindings::SBProcess> {
+    type Wrapper<T> = UniquePtr<bindings::SBProcess>;
 
-impl WrappedProcess for Pin<&mut bindings::SBProcess>
-{
-    fn thread(self, id: usize) -> UniquePtr<bindings::SBThread>
+    fn thread(self, id: usize) -> Self::Wrapper<bindings::SBThread>
     {
         self.GetThreadAtIndex(id).within_unique_ptr()
     }
 }
+*/
+trait Process : autocxx::PinMut<bindings::SBProcess> {
+
+    fn thread(&mut self, id: usize) -> UniquePtr<bindings::SBThread>
+    {
+        self.pin_mut().GetThreadAtIndex(id).within_unique_ptr()
+    }
+}
+impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> { }
+
+impl std::convert::AsRef<bindings::SBProcess>  for UniquePtr<bindings::SBProcess>
+{   fn as_ref(&self) -> &bindings::SBProcess
+    {
+        self.as_ref().expect("was nullptr")
+    }
+}
+
+
+impl autocxx::PinMut<bindings::SBProcess>  for UniquePtr<bindings::SBProcess>
+{
+    fn pin_mut(&mut self) -> Pin<&mut bindings::SBProcess> {
+        self.pin_mut()
+    }
+
+}
+
+impl std::convert::AsRef<bindings::SBProcess>  for Pin<Box<bindings::SBProcess>>
+{   fn as_ref(&self) -> &bindings::SBProcess
+    {
+        self.as_ref().get_ref()
+    }
+}
+
+impl autocxx::PinMut<bindings::SBProcess>  for Pin<Box<bindings::SBProcess>>
+{
+    fn pin_mut(&mut self) -> Pin<&mut bindings::SBProcess> {
+        self.as_mut()
+    }
+}
+
 
 
 #[cfg(test)]
@@ -162,12 +207,12 @@ mod test {
     #[test]
     fn test_process_box() {
         let mut p = lldb::SBProcess::new().within_box();
-        p.as_mut().thread(0);
+        p.thread(0);
     }
     #[test]
     fn test_process_unique_ptr() {
         let mut p = lldb::SBProcess::new().within_unique_ptr();
-        p.pin_mut().thread(0);
+        p.thread(0);
     }
 
 }
