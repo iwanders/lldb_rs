@@ -142,60 +142,57 @@ impl std::fmt::Debug for Error {
 // https://github.com/rust-lang/rust/pull/96709
 // To support bindings that support both Pin<Box<T>> as well as UniquePtr<T>
 
-/*
-pub trait Process {
-    type Wrapper;
-
-    fn thread(self, id: usize) -> Self::Wrapper<bindings::SBThread>;
+// Create these two in case we ever want the wrappers to use another container easily.
+type Carrier<T> = UniquePtr<T>;
+fn wrap<T: autocxx::WithinUniquePtr> (z: T) -> Carrier<T::Inner>
+{
+    z.within_unique_ptr()
 }
-impl Process for UniquePtr<bindings::SBProcess> {
-    type Wrapper<T> = UniquePtr<bindings::SBProcess>;
 
-    fn thread(self, id: usize) -> Self::Wrapper<bindings::SBThread>
-    {
-        self.GetThreadAtIndex(id).within_unique_ptr()
-    }
-}
-*/
 trait Process : autocxx::PinMut<bindings::SBProcess> {
-
-    fn thread(&mut self, id: usize) -> UniquePtr<bindings::SBThread>
+    fn thread(&mut self, id: usize) -> Carrier<bindings::SBThread>
     {
-        self.pin_mut().GetThreadAtIndex(id).within_unique_ptr()
+        wrap(self.pin_mut().GetThreadAtIndex(id))
     }
 }
 impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> { }
 
-impl std::convert::AsRef<bindings::SBProcess>  for UniquePtr<bindings::SBProcess>
-{   fn as_ref(&self) -> &bindings::SBProcess
-    {
-        self.as_ref().expect("was nullptr")
+
+
+macro_rules! handle_box_and_uniqueptr {
+    ($t:ty) => {
+        impl std::convert::AsRef<$t>  for UniquePtr<$t>
+        {   fn as_ref(&self) -> &$t
+            {
+                self.as_ref().expect("was nullptr")
+            }
+        }
+
+        impl autocxx::PinMut<$t>  for UniquePtr<$t>
+        {
+            fn pin_mut(&mut self) -> Pin<&mut $t> {
+                self.pin_mut()
+            }
+
+        }
+
+
+        impl std::convert::AsRef<$t>  for Pin<Box<$t>>
+        {   fn as_ref(&self) -> &$t
+            {
+                self.as_ref().get_ref()
+            }
+        }
+
+        impl autocxx::PinMut<$t>  for Pin<Box<$t>>
+        {
+            fn pin_mut(&mut self) -> Pin<&mut $t> {
+                self.as_mut()
+            }
+        }
     }
 }
-
-
-impl autocxx::PinMut<bindings::SBProcess>  for UniquePtr<bindings::SBProcess>
-{
-    fn pin_mut(&mut self) -> Pin<&mut bindings::SBProcess> {
-        self.pin_mut()
-    }
-
-}
-
-impl std::convert::AsRef<bindings::SBProcess>  for Pin<Box<bindings::SBProcess>>
-{   fn as_ref(&self) -> &bindings::SBProcess
-    {
-        self.as_ref().get_ref()
-    }
-}
-
-impl autocxx::PinMut<bindings::SBProcess>  for Pin<Box<bindings::SBProcess>>
-{
-    fn pin_mut(&mut self) -> Pin<&mut bindings::SBProcess> {
-        self.as_mut()
-    }
-}
-
+handle_box_and_uniqueptr!(bindings::SBProcess);
 
 
 #[cfg(test)]
