@@ -14,7 +14,7 @@ impl Event {
     }
 
     /// Create a new wrapped event, holding a default initialised SBEvent.
-    pub fn create() -> Self {
+    pub fn new() -> Self {
         Event {
             event: bindings::SBEvent::new().within_unique_ptr(),
         }
@@ -68,7 +68,7 @@ impl Error {
     }
 
     /// Create a new wrapped error, holding a default initialised SBError.
-    pub fn create() -> Self {
+    pub fn new() -> Self {
         Error {
             err: bindings::SBError::new().within_unique_ptr(),
         }
