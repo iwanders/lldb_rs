@@ -136,3 +136,39 @@ impl std::fmt::Debug for Error {
         write!(f, "Error: {}", self.get_str())
     }
 }
+
+
+
+trait WrappedProcess
+{
+    fn thread(self, id: usize) -> UniquePtr<bindings::SBThread>;
+}
+
+impl WrappedProcess for Pin<&mut bindings::SBProcess>
+{
+    fn thread(self, id: usize) -> UniquePtr<bindings::SBThread>
+    {
+        self.GetThreadAtIndex(id).within_unique_ptr()
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::api::ffi::lldb;
+    use autocxx::prelude::*;
+
+    #[test]
+    fn test_process_box() {
+        let mut p = lldb::SBProcess::new().within_box();
+        p.as_mut().thread(0);
+    }
+    #[test]
+    fn test_process_unique_ptr() {
+        let mut p = lldb::SBProcess::new().within_unique_ptr();
+        p.pin_mut().thread(0);
+    }
+
+}
+
