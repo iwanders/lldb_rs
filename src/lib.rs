@@ -1,4 +1,3 @@
-
 /// The raw bindings as produced.
 pub mod api;
 

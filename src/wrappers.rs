@@ -29,7 +29,6 @@ impl Event {
     pub fn pin_mut(&mut self) -> Pin<&mut bindings::SBEvent> {
         self.event.pin_mut()
     }
-
 }
 
 impl std::fmt::Debug for Event {
@@ -137,99 +136,82 @@ impl std::fmt::Debug for Error {
     }
 }
 
-
 // We could really benefit from:
 // https://github.com/rust-lang/rust/pull/96709
 // To support bindings that support both Pin<Box<T>> as well as UniquePtr<T>
 
 // Create these two in case we ever want the wrappers to use another container easily.
 type Carrier<T> = UniquePtr<T>;
-fn wrap<T: autocxx::WithinUniquePtr> (z: T) -> Carrier<T::Inner>
-{
+fn wrap<T: autocxx::WithinUniquePtr>(z: T) -> Carrier<T::Inner> {
     z.within_unique_ptr()
 }
 
 macro_rules! handle_box_and_uniqueptr {
     ($t:ty) => {
-        impl std::convert::AsRef<$t>  for UniquePtr<$t>
-        {   fn as_ref(&self) -> &$t
-            {
+        impl std::convert::AsRef<$t> for UniquePtr<$t> {
+            fn as_ref(&self) -> &$t {
                 self.as_ref().expect("was nullptr")
             }
         }
 
-        impl autocxx::PinMut<$t>  for UniquePtr<$t>
-        {
+        impl autocxx::PinMut<$t> for UniquePtr<$t> {
             fn pin_mut(&mut self) -> Pin<&mut $t> {
                 self.pin_mut()
             }
-
         }
 
-        impl std::convert::AsRef<$t>  for Pin<Box<$t>>
-        {   fn as_ref(&self) -> &$t
-            {
+        impl std::convert::AsRef<$t> for Pin<Box<$t>> {
+            fn as_ref(&self) -> &$t {
                 self.as_ref().get_ref()
             }
         }
 
-        impl autocxx::PinMut<$t>  for Pin<Box<$t>>
-        {
+        impl autocxx::PinMut<$t> for Pin<Box<$t>> {
             fn pin_mut(&mut self) -> Pin<&mut $t> {
                 self.as_mut()
             }
         }
-    }
+    };
 }
 
 handle_box_and_uniqueptr!(bindings::SBProcess);
 // Actual implementations now follow.
-trait Process : autocxx::PinMut<bindings::SBProcess> {
-    fn thread(&mut self, id: usize) -> Carrier<bindings::SBThread>
-    {
+trait Process: autocxx::PinMut<bindings::SBProcess> {
+    fn thread(&mut self, id: usize) -> Carrier<bindings::SBThread> {
         wrap(self.pin_mut().GetThreadAtIndex(id))
     }
 }
-impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> { }
-
+impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> {}
 
 handle_box_and_uniqueptr!(bindings::SBThread);
-trait Thread : autocxx::PinMut<bindings::SBThread> {
-    fn frame(&mut self, id: u32) -> Carrier<bindings::SBFrame>
-    {
+trait Thread: autocxx::PinMut<bindings::SBThread> {
+    fn frame(&mut self, id: u32) -> Carrier<bindings::SBFrame> {
         wrap(self.pin_mut().GetFrameAtIndex(id))
     }
 }
-impl<T> Thread for T where T: autocxx::PinMut<bindings::SBThread> { }
-
+impl<T> Thread for T where T: autocxx::PinMut<bindings::SBThread> {}
 
 handle_box_and_uniqueptr!(bindings::SBFrame);
-trait Frame : autocxx::PinMut<bindings::SBFrame> {
-    fn find_register(&mut self, name: &str) -> Carrier<bindings::SBValue>
-    {
+trait Frame: autocxx::PinMut<bindings::SBFrame> {
+    fn find_register(&mut self, name: &str) -> Carrier<bindings::SBValue> {
         let reg = std::ffi::CString::new(name).expect("no null bytes expected");
-        wrap(unsafe{self.pin_mut().FindRegister(reg.as_ptr())})
+        wrap(unsafe { self.pin_mut().FindRegister(reg.as_ptr()) })
     }
 }
-impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> { }
-
+impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> {}
 
 handle_box_and_uniqueptr!(bindings::SBValue);
-trait Value : autocxx::PinMut<bindings::SBValue> {
-    fn get_value_as_unsigned(&mut self) -> Result<u64, Box<Error>>
-    {
-        let mut e =  Error::new();
-        let res = self.pin_mut().GetValueAsUnsigned(e.pin_mut(), 0 );
-        if e.is_success()
-        {
+trait Value: autocxx::PinMut<bindings::SBValue> {
+    fn get_value_as_unsigned(&mut self) -> Result<u64, Box<Error>> {
+        let mut e = Error::new();
+        let res = self.pin_mut().GetValueAsUnsigned(e.pin_mut(), 0);
+        if e.is_success() {
             return Ok(res);
         }
         Err(e.into_box())
     }
 }
-impl<T> Value for T where T: autocxx::PinMut<bindings::SBValue> { }
-
-
+impl<T> Value for T where T: autocxx::PinMut<bindings::SBValue> {}
 
 #[cfg(test)]
 mod test {
@@ -237,6 +219,7 @@ mod test {
     use crate::api::ffi::lldb;
     use autocxx::prelude::*;
 
+    // And then, the wrappers allow us to write things nice and concise:
     #[test]
     fn test_process_box() {
         let mut p = lldb::SBProcess::new().within_box();
@@ -255,6 +238,4 @@ mod test {
         let v = reg.get_value_as_unsigned();
         assert!(v.is_err());
     }
-
 }
-

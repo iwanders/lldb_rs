@@ -1,4 +1,3 @@
-
 #![allow(rustdoc::broken_intra_doc_links)]
 #![allow(rustdoc::invalid_rust_codeblocks)]
 
