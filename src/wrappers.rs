@@ -142,7 +142,7 @@ impl std::fmt::Debug for Error {
 
 // Create these two in case we ever want the wrappers to use another container easily.
 type Carrier<T> = UniquePtr<T>;
-fn wrap<T: autocxx::WithinUniquePtr>(z: T) -> Carrier<T::Inner> {
+fn within<T: autocxx::WithinUniquePtr>(z: T) -> Carrier<T::Inner> {
     z.within_unique_ptr()
 }
 
@@ -174,11 +174,13 @@ macro_rules! handle_box_and_uniqueptr {
     };
 }
 
-handle_box_and_uniqueptr!(bindings::SBProcess);
 // Actual implementations now follow.
+// Todo; check const correctness.
+
+handle_box_and_uniqueptr!(bindings::SBProcess);
 trait Process: autocxx::PinMut<bindings::SBProcess> {
     fn thread(&mut self, id: usize) -> Carrier<bindings::SBThread> {
-        wrap(self.pin_mut().GetThreadAtIndex(id))
+        within(self.pin_mut().GetThreadAtIndex(id))
     }
 }
 impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> {}
@@ -186,7 +188,7 @@ impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> {}
 handle_box_and_uniqueptr!(bindings::SBThread);
 trait Thread: autocxx::PinMut<bindings::SBThread> {
     fn frame(&mut self, id: u32) -> Carrier<bindings::SBFrame> {
-        wrap(self.pin_mut().GetFrameAtIndex(id))
+        within(self.pin_mut().GetFrameAtIndex(id))
     }
 }
 impl<T> Thread for T where T: autocxx::PinMut<bindings::SBThread> {}
@@ -195,7 +197,7 @@ handle_box_and_uniqueptr!(bindings::SBFrame);
 trait Frame: autocxx::PinMut<bindings::SBFrame> {
     fn find_register(&mut self, name: &str) -> Carrier<bindings::SBValue> {
         let reg = std::ffi::CString::new(name).expect("no null bytes expected");
-        wrap(unsafe { self.pin_mut().FindRegister(reg.as_ptr()) })
+        within(unsafe { self.pin_mut().FindRegister(reg.as_ptr()) })
     }
 }
 impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> {}
@@ -212,6 +214,75 @@ trait Value: autocxx::PinMut<bindings::SBValue> {
     }
 }
 impl<T> Value for T where T: autocxx::PinMut<bindings::SBValue> {}
+
+
+pub struct Wrapped<T: cxx::private::UniquePtrTarget> {
+    item: Carrier<T>
+}
+impl<T> Wrapped<T> where T :  cxx::private::UniquePtrTarget
+{
+    pub fn new(item: UniquePtr<T>) -> Self
+    {
+        Wrapped::<T>{item}
+    }
+} 
+
+impl<T> std::convert::AsRef<T> for Wrapped<T> where T: cxx::private::UniquePtrTarget
+{
+    fn as_ref(&self) -> &T
+    {
+        self.item.as_ref().expect("cannot be nullptr")
+    }
+}
+impl<T> autocxx::PinMut<T> for Wrapped<T> where T: cxx::private::UniquePtrTarget
+{
+    fn pin_mut(&mut self) -> Pin<&mut T> {
+        self.item.as_mut().expect("cannot be nullptr")
+    }
+}
+
+pub fn wrapped<T: cxx::private::UniquePtrTarget>(item: UniquePtr<T>) -> Wrapped<T> {
+    Wrapped{item}
+}
+
+handle_box_and_uniqueptr!(bindings::SBError);
+trait TError: autocxx::PinMut<bindings::SBError> {
+
+    /// Returns internal objects Fail() method.
+    fn is_fail(&self) -> bool {
+        self.as_ref().Fail()
+    }
+
+    /// Returns internal objects Success() method.
+    fn is_success(&self) -> bool {
+        self.as_ref().Success()
+    }
+    /// Return a string representation for this error.
+    fn get_str(&self) -> &str {
+        let err_str = bindings::SBError::GetCString(&self.as_ref());
+        if err_str.is_null() {
+            return "no error string";
+        }
+        let z = unsafe { std::ffi::CStr::from_ptr(err_str) };
+        z.to_str().expect("should be ascii")
+    }
+
+    /// Return the error type.
+    fn get_type(&self) -> bindings::ErrorType {
+        self.as_ref().GetType()
+    }
+}
+impl<T> TError for T where T: autocxx::PinMut<bindings::SBError> {}
+
+// To implement external types, we need to have a concrete type.
+impl std::fmt::Debug for  Wrapped<bindings::SBError>  {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Error: {}", self.get_str())
+    }
+}
+
+
+
 
 #[cfg(test)]
 mod test {
@@ -237,5 +308,16 @@ mod test {
         let mut reg = f.find_register("edx");
         let v = reg.get_value_as_unsigned();
         assert!(v.is_err());
+    }
+
+    #[test]
+    fn test_error()
+    {
+        let mut e = wrapped(lldb::SBError::new().within_unique_ptr());
+        // println!("{}", e);
+        println!("{:?}", e);
+        // let z: Box<dyn std::error::Error> = Box::new(e);
+        // println!("{}", z);
+        // println!("{:?}", z);
     }
 }
