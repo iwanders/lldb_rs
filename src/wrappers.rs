@@ -2,66 +2,13 @@ use crate::api::ffi::lldb as bindings;
 use crate::autocxx::prelude::*;
 use std::pin::Pin;
 
-/// A wrapper for the SBEvent object, to make this printable and allow for easier inspection.
-pub struct Event {
-    event: UniquePtr<bindings::SBEvent>,
-}
-
-impl Event {
-    /// Create a new Event wrapping the provided SBEvent.
-    pub fn from(event: UniquePtr<bindings::SBEvent>) -> Self {
-        Event { event }
-    }
-
-    /// Create a new wrapped event, holding a default initialised SBEvent.
-    pub fn new() -> Self {
-        Event {
-            event: bindings::SBEvent::new().within_unique_ptr(),
-        }
-    }
-
-    /// Retrieve the event_type for this event.
-    pub fn event_type(&self) -> bindings::StateType {
-        bindings::SBProcess::GetStateFromEvent(self.event.as_ref().unwrap())
-    }
-
-    /// Return a pinned mutable reference to the internal object.
-    pub fn pin_mut(&mut self) -> Pin<&mut bindings::SBEvent> {
-        self.event.pin_mut()
-    }
-}
-
-impl std::fmt::Debug for Event {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        // https://lldb.llvm.org/python_api/lldb.SBEvent.html
-
-        // Get the event process state.
-        let process_state = self.event_type();
-        write!(f, "event_type: {:?} ", process_state)?;
-
-        // Get the full description
-        let mut s = bindings::SBStream::new().within_unique_ptr();
-        self.event.as_ref().unwrap().GetDescription1(s.pin_mut());
-        let event_str = unsafe { std::ffi::CStr::from_ptr(s.as_mut().unwrap().GetData()) };
-        write!(f, "event: {:?}", event_str)?;
-
-        // Finally, check if there is an event string to use.
-        let event_str = bindings::SBEvent::GetCStringFromEvent(&self.event.as_ref().unwrap());
-        if !event_str.is_null() {
-            let z = unsafe { std::ffi::CStr::from_ptr(event_str) };
-            write!(f, "event string: {:?}", z)?;
-        }
-        Ok(())
-    }
-}
-
 // We could really benefit from:
 // https://github.com/rust-lang/rust/pull/96709
 // To support bindings that support both Pin<Box<T>> as well as UniquePtr<T>
 
 // Create these two in case we ever want the wrappers to use another container easily.
 type Carrier<T> = Pin<Box<T>>;
-fn within<T: autocxx::WithinBox>(z: T) -> Wrapped<T::Inner> {
+pub fn within<T: autocxx::WithinBox>(z: T) -> Wrapped<T::Inner> {
     wrapped(z.within_box())
 }
 pub fn wrapped<T>(item: Carrier<T>) -> Wrapped<T> {
@@ -69,18 +16,18 @@ pub fn wrapped<T>(item: Carrier<T>) -> Wrapped<T> {
 }
 
 // We need a wrapper type we own, such that we can implement external traits such as std::fmt::Debug
-// To implement external traits, we can implement them for on this wrapped type we own;
-// but we can still use methods of our PinMut implementing trait, which means not everything
-// needs to be wrapped all the time.
-// We will implement our traits with convenience methods extending something that implements
-// autocxx::PinMut<T>. This means that we can use our traits on UniquePtr<T>,
+// But our traits with convenience methods that are the safe API are implemented for anything with
+// PinMut which means not everything needs to be wrapped all the time.
+// This means that we can use our traits on UniquePtr<T>,
 // Pin<Box<T>> as well as on our own wrapper which also implements autocxx::PinMut<T>
-// Say SBDebugger has a method that provides SBTarget, but we didn't wrap that, we can still do:
+// Say SBDebugger has a method 'my_target_method' that provides SBTarget, but we didn't implement
+// that, so it returns something from autocxx, we can still do:
 // let foo = wrapped(SBDebugger::Create());
 // let t = foo.GetTarget().within_box().my_target_method()
-// where my_target_method is something that's implemented by our wrapper for Target, that uses the
+// where my_target_method() is something that's implemented by our wrapper for Target, that uses the
 // PinMut implementation. This means that even if our SBDebugger doesn't provide full coverage of
-// the methods in SBDebugger this is not a problem to use the helper methods for Target.
+// the methods in SBDebugger this is not a problem and we can still use the helper methods for
+// implemented for PinMut<SBTarget>.
 // Returning wrapped versions is still better, as they would allow us to use the traits external to
 // this crate, like std::fmt::Debug, but going with this for now as this provides a good way forward
 // when the API isn't fully covered (which, it likely will never be).
@@ -142,7 +89,7 @@ macro_rules! handle_box_and_uniqueptr {
 // Todo; check const correctness.
 
 handle_box_and_uniqueptr!(bindings::SBProcess);
-trait Process: autocxx::PinMut<bindings::SBProcess> {
+pub trait Process: autocxx::PinMut<bindings::SBProcess> {
     fn thread(&mut self, id: usize) -> Wrapped<bindings::SBThread> {
         within(self.pin_mut().GetThreadAtIndex(id))
     }
@@ -150,7 +97,7 @@ trait Process: autocxx::PinMut<bindings::SBProcess> {
 impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> {}
 
 handle_box_and_uniqueptr!(bindings::SBThread);
-trait Thread: autocxx::PinMut<bindings::SBThread> {
+pub trait Thread: autocxx::PinMut<bindings::SBThread> {
     fn frame(&mut self, id: u32) -> Wrapped<bindings::SBFrame> {
         within(self.pin_mut().GetFrameAtIndex(id))
     }
@@ -158,7 +105,7 @@ trait Thread: autocxx::PinMut<bindings::SBThread> {
 impl<T> Thread for T where T: autocxx::PinMut<bindings::SBThread> {}
 
 handle_box_and_uniqueptr!(bindings::SBFrame);
-trait Frame: autocxx::PinMut<bindings::SBFrame> {
+pub trait Frame: autocxx::PinMut<bindings::SBFrame> {
     fn find_register(&mut self, name: &str) -> Wrapped<bindings::SBValue> {
         let reg = std::ffi::CString::new(name).expect("no null bytes expected");
         within(unsafe { self.pin_mut().FindRegister(reg.as_ptr()) })
@@ -167,7 +114,7 @@ trait Frame: autocxx::PinMut<bindings::SBFrame> {
 impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> {}
 
 handle_box_and_uniqueptr!(bindings::SBValue);
-trait Value: autocxx::PinMut<bindings::SBValue> {
+pub trait Value: autocxx::PinMut<bindings::SBValue> {
     fn get_value_as_unsigned(&mut self) -> Result<u64, Box<Wrapped<bindings::SBError>>> {
         let mut e = within(bindings::SBError::new());
         let res = self.pin_mut().GetValueAsUnsigned(e.pin_mut(), 0);
@@ -180,7 +127,7 @@ trait Value: autocxx::PinMut<bindings::SBValue> {
 impl<T> Value for T where T: autocxx::PinMut<bindings::SBValue> {}
 
 handle_box_and_uniqueptr!(bindings::SBError);
-trait Error: autocxx::PinMut<bindings::SBError> {
+pub trait Error: autocxx::PinMut<bindings::SBError> {
     /// Returns internal objects Fail() method.
     fn is_fail(&self) -> bool {
         self.as_ref().Fail()
@@ -223,6 +170,41 @@ impl std::fmt::Display for Wrapped<bindings::SBError> {
         write!(f, "Error ({:?}): {}", self.get_type(), self.get_str())
     }
 }
+
+
+handle_box_and_uniqueptr!(bindings::SBEvent);
+pub trait Event: autocxx::PinMut<bindings::SBEvent> {
+    /// Retrieve the event_type for this event.
+    fn event_type(&self) -> bindings::StateType {
+        bindings::SBProcess::GetStateFromEvent(self.as_ref())
+    }
+}
+impl<T> Event for T where T: autocxx::PinMut<bindings::SBEvent> {}
+
+impl std::fmt::Debug for Wrapped<bindings::SBEvent> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // https://lldb.llvm.org/python_api/lldb.SBEvent.html
+
+        // Get the event process state.
+        let process_state = self.event_type();
+        write!(f, "event_type: {:?} ", process_state)?;
+
+        // Get the full description
+        let mut s = bindings::SBStream::new().within_unique_ptr();
+        self.as_ref().GetDescription1(s.pin_mut());
+        let event_str = unsafe { std::ffi::CStr::from_ptr(s.as_mut().unwrap().GetData()) };
+        write!(f, "event: {:?}", event_str)?;
+
+        // Finally, check if there is an event string to use.
+        let event_str = bindings::SBEvent::GetCStringFromEvent(&self.as_ref());
+        if !event_str.is_null() {
+            let z = unsafe { std::ffi::CStr::from_ptr(event_str) };
+            write!(f, "event string: {:?}", z)?;
+        }
+        Ok(())
+    }
+}
+
 
 #[cfg(test)]
 mod test {
