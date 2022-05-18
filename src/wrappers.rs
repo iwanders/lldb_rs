@@ -141,37 +141,37 @@ impl std::fmt::Debug for Error {
 // To support bindings that support both Pin<Box<T>> as well as UniquePtr<T>
 
 // Create these two in case we ever want the wrappers to use another container easily.
-type Carrier<T> = UniquePtr<T>;
-fn within<T: autocxx::WithinUniquePtr>(z: T) -> Wrapped<T::Inner> {
-    wrapped(z.within_unique_ptr())
+type Carrier<T> = Pin<Box<T>>;
+fn within<T: autocxx::WithinBox>(z: T) -> Wrapped<T::Inner> {
+    wrapped(z.within_box())
 }
 
-pub struct Wrapped<T: cxx::private::UniquePtrTarget> {
+pub struct Wrapped<T> {
     item: Carrier<T>
 }
-impl<T> Wrapped<T> where T :  cxx::private::UniquePtrTarget
+impl<T> Wrapped<T> 
 {
-    pub fn new(item: UniquePtr<T>) -> Self
+    pub fn new(item: Carrier<T>) -> Self
     {
         Wrapped::<T>{item}
     }
 } 
 
-impl<T> std::convert::AsRef<T> for Wrapped<T> where T: cxx::private::UniquePtrTarget
+impl<T> std::convert::AsRef<T> for Wrapped<T> 
 {
     fn as_ref(&self) -> &T
     {
-        self.item.as_ref().expect("cannot be nullptr")
+        self.item.as_ref().get_ref()
     }
 }
-impl<T> autocxx::PinMut<T> for Wrapped<T> where T: cxx::private::UniquePtrTarget
+impl<T> autocxx::PinMut<T> for Wrapped<T> 
 {
     fn pin_mut(&mut self) -> Pin<&mut T> {
-        self.item.as_mut().expect("cannot be nullptr")
+        self.item.as_mut()
     }
 }
 
-pub fn wrapped<T: cxx::private::UniquePtrTarget>(item: UniquePtr<T>) -> Wrapped<T> {
+pub fn wrapped<T >(item: Carrier<T>) -> Wrapped<T> {
     Wrapped{item}
 }
 
@@ -313,7 +313,7 @@ mod test {
     #[test]
     fn test_error()
     {
-        let mut e = wrapped(lldb::SBError::new().within_unique_ptr());
+        let mut e = wrapped(lldb::SBError::new().within_box());
         // println!("{}", e);
         println!("{:?}", e);
         // let z: Box<dyn std::error::Error> = Box::new(e);
