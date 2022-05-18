@@ -8,12 +8,12 @@ use std::pin::Pin;
 
 // Create these two in case we ever want the wrappers to use another container easily.
 type Carrier<T> = Pin<Box<T>>;
-pub fn within<T: autocxx::WithinBox>(z: T) -> Wrapped<T::Inner> {
-    wrapped(z.within_box())
-}
-pub fn wrapped<T>(item: Carrier<T>) -> Wrapped<T> {
-    Wrapped { item }
-}
+// pub fn within<T: autocxx::WithinBox>(z: T) -> Wrapped<T::Inner> {
+// wrapped(z.within_box())
+// }
+// pub fn wrapped<T>(item: Carrier<T>) -> Wrapped<T> {
+// Wrapped { item }
+// }
 
 // We need a wrapper type we own, such that we can implement external traits such as std::fmt::Debug
 // But our traits with convenience methods that are the safe API are implemented for anything with
@@ -40,6 +40,23 @@ pub struct Wrapped<T> {
 impl<T> Wrapped<T> {
     pub fn new(item: Carrier<T>) -> Self {
         Wrapped::<T> { item }
+    }
+}
+
+pub trait Wrappable {
+    type Type;
+    fn wrap(self) -> Wrapped<Self::Type>;
+}
+
+impl<T> Wrappable for T
+where
+    T: autocxx::prelude::New,
+{
+    type Type = T::Output;
+    fn wrap(self) -> Wrapped<<T as autocxx::prelude::New>::Output> {
+        Wrapped::<Self::Type> {
+            item: self.within_box(),
+        }
     }
 }
 
@@ -91,7 +108,7 @@ macro_rules! handle_box_and_uniqueptr {
 handle_box_and_uniqueptr!(bindings::SBProcess);
 pub trait Process: autocxx::PinMut<bindings::SBProcess> {
     fn thread(&mut self, id: usize) -> Wrapped<bindings::SBThread> {
-        within(self.pin_mut().GetThreadAtIndex(id))
+        self.pin_mut().GetThreadAtIndex(id).wrap()
     }
 }
 impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> {}
@@ -99,7 +116,7 @@ impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> {}
 handle_box_and_uniqueptr!(bindings::SBThread);
 pub trait Thread: autocxx::PinMut<bindings::SBThread> {
     fn frame(&mut self, id: u32) -> Wrapped<bindings::SBFrame> {
-        within(self.pin_mut().GetFrameAtIndex(id))
+        self.pin_mut().GetFrameAtIndex(id).wrap()
     }
 }
 impl<T> Thread for T where T: autocxx::PinMut<bindings::SBThread> {}
@@ -108,7 +125,7 @@ handle_box_and_uniqueptr!(bindings::SBFrame);
 pub trait Frame: autocxx::PinMut<bindings::SBFrame> {
     fn find_register(&mut self, name: &str) -> Wrapped<bindings::SBValue> {
         let reg = std::ffi::CString::new(name).expect("no null bytes expected");
-        within(unsafe { self.pin_mut().FindRegister(reg.as_ptr()) })
+        unsafe { self.pin_mut().FindRegister(reg.as_ptr()) }.wrap()
     }
 }
 impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> {}
@@ -116,7 +133,7 @@ impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> {}
 handle_box_and_uniqueptr!(bindings::SBValue);
 pub trait Value: autocxx::PinMut<bindings::SBValue> {
     fn get_value_as_unsigned(&mut self) -> Result<u64, Box<Wrapped<bindings::SBError>>> {
-        let mut e = within(bindings::SBError::new());
+        let mut e = bindings::SBError::new().wrap();
         let res = self.pin_mut().GetValueAsUnsigned(e.pin_mut(), 0);
         if e.is_success() {
             return Ok(res);
@@ -171,7 +188,6 @@ impl std::fmt::Display for Wrapped<bindings::SBError> {
     }
 }
 
-
 handle_box_and_uniqueptr!(bindings::SBEvent);
 pub trait Event: autocxx::PinMut<bindings::SBEvent> {
     /// Retrieve the event_type for this event.
@@ -205,7 +221,6 @@ impl std::fmt::Debug for Wrapped<bindings::SBEvent> {
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -237,6 +252,16 @@ mod test {
     #[test]
     fn test_process_unique_ptr() {
         let mut p = lldb::SBProcess::new().within_unique_ptr();
+        let mut t = p.thread(0);
+        let mut f = t.frame(0);
+        let mut reg = f.find_register("edx");
+        let v = reg.get_value_as_unsigned();
+        assert!(v.is_err());
+    }
+
+    #[test]
+    fn test_process_wrap() {
+        let mut p = lldb::SBProcess::new().wrap();
         let mut t = p.thread(0);
         let mut f = t.frame(0);
         let mut reg = f.find_register("edx");
