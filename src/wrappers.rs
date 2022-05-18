@@ -142,8 +142,37 @@ impl std::fmt::Debug for Error {
 
 // Create these two in case we ever want the wrappers to use another container easily.
 type Carrier<T> = UniquePtr<T>;
-fn within<T: autocxx::WithinUniquePtr>(z: T) -> Carrier<T::Inner> {
-    z.within_unique_ptr()
+fn within<T: autocxx::WithinUniquePtr>(z: T) -> Wrapped<T::Inner> {
+    wrapped(z.within_unique_ptr())
+}
+
+pub struct Wrapped<T: cxx::private::UniquePtrTarget> {
+    item: Carrier<T>
+}
+impl<T> Wrapped<T> where T :  cxx::private::UniquePtrTarget
+{
+    pub fn new(item: UniquePtr<T>) -> Self
+    {
+        Wrapped::<T>{item}
+    }
+} 
+
+impl<T> std::convert::AsRef<T> for Wrapped<T> where T: cxx::private::UniquePtrTarget
+{
+    fn as_ref(&self) -> &T
+    {
+        self.item.as_ref().expect("cannot be nullptr")
+    }
+}
+impl<T> autocxx::PinMut<T> for Wrapped<T> where T: cxx::private::UniquePtrTarget
+{
+    fn pin_mut(&mut self) -> Pin<&mut T> {
+        self.item.as_mut().expect("cannot be nullptr")
+    }
+}
+
+pub fn wrapped<T: cxx::private::UniquePtrTarget>(item: UniquePtr<T>) -> Wrapped<T> {
+    Wrapped{item}
 }
 
 macro_rules! handle_box_and_uniqueptr {
@@ -179,7 +208,7 @@ macro_rules! handle_box_and_uniqueptr {
 
 handle_box_and_uniqueptr!(bindings::SBProcess);
 trait Process: autocxx::PinMut<bindings::SBProcess> {
-    fn thread(&mut self, id: usize) -> Carrier<bindings::SBThread> {
+    fn thread(&mut self, id: usize) -> Wrapped<bindings::SBThread> {
         within(self.pin_mut().GetThreadAtIndex(id))
     }
 }
@@ -187,7 +216,7 @@ impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> {}
 
 handle_box_and_uniqueptr!(bindings::SBThread);
 trait Thread: autocxx::PinMut<bindings::SBThread> {
-    fn frame(&mut self, id: u32) -> Carrier<bindings::SBFrame> {
+    fn frame(&mut self, id: u32) -> Wrapped<bindings::SBFrame> {
         within(self.pin_mut().GetFrameAtIndex(id))
     }
 }
@@ -195,7 +224,7 @@ impl<T> Thread for T where T: autocxx::PinMut<bindings::SBThread> {}
 
 handle_box_and_uniqueptr!(bindings::SBFrame);
 trait Frame: autocxx::PinMut<bindings::SBFrame> {
-    fn find_register(&mut self, name: &str) -> Carrier<bindings::SBValue> {
+    fn find_register(&mut self, name: &str) -> Wrapped<bindings::SBValue> {
         let reg = std::ffi::CString::new(name).expect("no null bytes expected");
         within(unsafe { self.pin_mut().FindRegister(reg.as_ptr()) })
     }
@@ -215,35 +244,6 @@ trait Value: autocxx::PinMut<bindings::SBValue> {
 }
 impl<T> Value for T where T: autocxx::PinMut<bindings::SBValue> {}
 
-
-pub struct Wrapped<T: cxx::private::UniquePtrTarget> {
-    item: Carrier<T>
-}
-impl<T> Wrapped<T> where T :  cxx::private::UniquePtrTarget
-{
-    pub fn new(item: UniquePtr<T>) -> Self
-    {
-        Wrapped::<T>{item}
-    }
-} 
-
-impl<T> std::convert::AsRef<T> for Wrapped<T> where T: cxx::private::UniquePtrTarget
-{
-    fn as_ref(&self) -> &T
-    {
-        self.item.as_ref().expect("cannot be nullptr")
-    }
-}
-impl<T> autocxx::PinMut<T> for Wrapped<T> where T: cxx::private::UniquePtrTarget
-{
-    fn pin_mut(&mut self) -> Pin<&mut T> {
-        self.item.as_mut().expect("cannot be nullptr")
-    }
-}
-
-pub fn wrapped<T: cxx::private::UniquePtrTarget>(item: UniquePtr<T>) -> Wrapped<T> {
-    Wrapped{item}
-}
 
 handle_box_and_uniqueptr!(bindings::SBError);
 trait TError: autocxx::PinMut<bindings::SBError> {
