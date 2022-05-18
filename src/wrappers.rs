@@ -64,8 +64,8 @@ type Carrier<T> = Pin<Box<T>>;
 fn within<T: autocxx::WithinBox>(z: T) -> Wrapped<T::Inner> {
     wrapped(z.within_box())
 }
-pub fn wrapped<T >(item: Carrier<T>) -> Wrapped<T> {
-    Wrapped{item}
+pub fn wrapped<T>(item: Carrier<T>) -> Wrapped<T> {
+    Wrapped { item }
 }
 
 // We need a wrapper type we own, such that we can implement external traits such as std::fmt::Debug
@@ -88,27 +88,22 @@ pub fn wrapped<T >(item: Carrier<T>) -> Wrapped<T> {
 // convenience methods for all three wrapping types.
 
 pub struct Wrapped<T> {
-    item: Carrier<T>
+    item: Carrier<T>,
 }
-impl<T> Wrapped<T> 
-{
-    pub fn new(item: Carrier<T>) -> Self
-    {
-        Wrapped::<T>{item}
+impl<T> Wrapped<T> {
+    pub fn new(item: Carrier<T>) -> Self {
+        Wrapped::<T> { item }
     }
 }
 
 /// For this type, implement AsRef, prerequisite for autocxx::PinMut
-impl<T> std::convert::AsRef<T> for Wrapped<T> 
-{
-    fn as_ref(&self) -> &T
-    {
+impl<T> std::convert::AsRef<T> for Wrapped<T> {
+    fn as_ref(&self) -> &T {
         self.item.as_ref().get_ref()
     }
 }
 /// Implement PinMut for our wrapper, this makes all methods accessible.
-impl<T> autocxx::PinMut<T> for Wrapped<T> 
-{
+impl<T> autocxx::PinMut<T> for Wrapped<T> {
     fn pin_mut(&mut self) -> Pin<&mut T> {
         self.item.as_mut()
     }
@@ -184,10 +179,8 @@ trait Value: autocxx::PinMut<bindings::SBValue> {
 }
 impl<T> Value for T where T: autocxx::PinMut<bindings::SBValue> {}
 
-
 handle_box_and_uniqueptr!(bindings::SBError);
 trait Error: autocxx::PinMut<bindings::SBError> {
-
     /// Returns internal objects Fail() method.
     fn is_fail(&self) -> bool {
         self.as_ref().Fail()
@@ -214,25 +207,22 @@ trait Error: autocxx::PinMut<bindings::SBError> {
 }
 impl<T> Error for T where T: autocxx::PinMut<bindings::SBError> {}
 
-impl std::fmt::Debug for Wrapped<bindings::SBError>  {
+impl std::fmt::Debug for Wrapped<bindings::SBError> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Error: {}", self.get_str())
     }
 }
 
-impl std::error::Error for Wrapped<bindings::SBError>{
+impl std::error::Error for Wrapped<bindings::SBError> {
     fn description(&self) -> &str {
         self.get_str()
     }
 }
-impl std::fmt::Display for Wrapped<bindings::SBError>{
+impl std::fmt::Display for Wrapped<bindings::SBError> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Error ({:?}): {}", self.get_type(), self.get_str())
     }
 }
-
-
-
 
 #[cfg(test)]
 mod test {
@@ -273,8 +263,7 @@ mod test {
     }
 
     #[test]
-    fn test_error()
-    {
+    fn test_error() {
         let e = wrapped(lldb::SBError::new().within_box());
         println!("{}", e);
         println!("{:?}", e);
