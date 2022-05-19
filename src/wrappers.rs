@@ -111,7 +111,16 @@ pub trait Process: autocxx::PinMut<bindings::SBProcess> {
         self.pin_mut().GetThreadAtIndex(id).wrap()
     }
 }
-impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> {}
+// This works:
+impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T  {}
+// But so does this:
+// impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> {}
+// And these three:
+// impl Process for UniquePtr<bindings::SBProcess>  {}
+// impl Process for Wrapped<bindings::SBProcess>  {}
+// impl Process for Pin<Box<bindings::SBProcess>>  {}
+// Not sure which one is superior atm.
+
 
 handle_box_and_uniqueptr!(bindings::SBThread);
 pub trait Thread: autocxx::PinMut<bindings::SBThread> {
