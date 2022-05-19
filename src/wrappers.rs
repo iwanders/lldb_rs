@@ -242,7 +242,7 @@ mod test {
     #[test]
     fn test_process_wrapped_box() {
         // This operates on our wrapper in the first call.
-        let mut p = wrapped(lldb::SBProcess::new().within_box());
+        let mut p = lldb::SBProcess::new().wrap();
         let mut t = p.thread(0);
         let mut f = t.frame(0);
         let mut reg = f.find_register("edx");
@@ -271,7 +271,7 @@ mod test {
 
     #[test]
     fn test_error() {
-        let e = wrapped(lldb::SBError::new().within_box());
+        let e = lldb::SBError::new().wrap();
         println!("{}", e);
         println!("{:?}", e);
         let z: Box<dyn std::error::Error> = Box::new(e);
