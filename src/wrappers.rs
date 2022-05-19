@@ -103,8 +103,8 @@ macro_rules! handle_box_and_uniqueptr {
 }
 
 // Actual implementations now follow.
-// Todo; check const correctness.
 
+// https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBProcess.h
 handle_box_and_uniqueptr!(bindings::SBProcess);
 pub trait Process: autocxx::PinMut<bindings::SBProcess> {
     fn thread(&mut self, id: usize) -> Wrapped<bindings::SBThread> {
@@ -112,7 +112,7 @@ pub trait Process: autocxx::PinMut<bindings::SBProcess> {
     }
 }
 // This works:
-impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T  {}
+impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T {}
 // But so does this:
 // impl<T> Process for T where T: autocxx::PinMut<bindings::SBProcess> {}
 // And these three:
@@ -121,7 +121,7 @@ impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T  {}
 // impl Process for Pin<Box<bindings::SBProcess>>  {}
 // Not sure which one is superior atm.
 
-
+// https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBThread.h
 handle_box_and_uniqueptr!(bindings::SBThread);
 pub trait Thread: autocxx::PinMut<bindings::SBThread> {
     fn frame(&mut self, id: u32) -> Wrapped<bindings::SBFrame> {
@@ -130,15 +130,24 @@ pub trait Thread: autocxx::PinMut<bindings::SBThread> {
 }
 impl<T> Thread for T where T: autocxx::PinMut<bindings::SBThread> {}
 
+// https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBFrame.h
 handle_box_and_uniqueptr!(bindings::SBFrame);
 pub trait Frame: autocxx::PinMut<bindings::SBFrame> {
-    fn find_register(&mut self, name: &str) -> Wrapped<bindings::SBValue> {
+    fn find_register(&mut self, name: &str) -> Wrapped<bindings::SBValue>  {
         let reg = std::ffi::CString::new(name).expect("no null bytes expected");
         unsafe { self.pin_mut().FindRegister(reg.as_ptr()) }.wrap()
+    }
+
+    fn evaluate_expression(&mut self, expr: &str) -> Wrapped<bindings::SBValue> {
+        let reg = std::ffi::CString::new(expr).expect("no null bytes expected");
+        unsafe { self.pin_mut().EvaluateExpression(reg.as_ptr()) }.wrap()
     }
 }
 impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> {}
 
+
+// Not a single method is const on SBValue, which makes it tricky to say... debug print, which
+// is a pretty big problem.
 handle_box_and_uniqueptr!(bindings::SBValue);
 pub trait Value: autocxx::PinMut<bindings::SBValue> {
     fn get_value_as_unsigned(&mut self) -> Result<u64, Box<Wrapped<bindings::SBError>>> {
@@ -149,8 +158,39 @@ pub trait Value: autocxx::PinMut<bindings::SBValue> {
         }
         Err(Box::new(e))
     }
+
+    // This super sketchy method casts const to mutable...
+    fn get_value(&self) -> &str
+    {
+        // let str_ptr = self.as_ref().GetSummary();
+        // GetSummary is not a const method, but we are in a const method.
+        // Obtain the raw pointer for this
+        let p_const = self.as_ref() as *const bindings::SBValue;
+        println!("p_const: {p_const:?}");
+        // Well, as_mut() is nightly.
+        // let p_mut = p_const.as_mut();
+        // Transmute the thing, such that we get a const pointer.
+        let p_mut = unsafe {
+            std::mem::transmute::<_, *mut bindings::SBValue>(p_const)
+        };
+        println!("p_mut: {p_mut:?}");
+        unsafe {
+            let mut_self = p_mut.as_mut().expect("never nullptr");
+            // Now, make it back into a reference and all that.
+            let z = Pin::new_unchecked(mut_self).GetValue();
+            if !z.is_null() {
+                return std::ffi::CStr::from_ptr(z).to_str().expect("ascii");
+            }
+        }
+        "nullptr"
+    }
 }
 impl<T> Value for T where T: autocxx::PinMut<bindings::SBValue> {}
+impl std::fmt::Debug for Wrapped<bindings::SBValue> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.get_value())
+    }
+}
 
 handle_box_and_uniqueptr!(bindings::SBError);
 pub trait Error: autocxx::PinMut<bindings::SBError> {
@@ -274,6 +314,7 @@ mod test {
         let mut t = p.thread(0);
         let mut f = t.frame(0);
         let mut reg = f.find_register("edx");
+        println!("{reg:?}");
         let v = reg.get_value_as_unsigned();
         assert!(v.is_err());
     }
@@ -286,5 +327,16 @@ mod test {
         let z: Box<dyn std::error::Error> = Box::new(e);
         println!("{}", z);
         println!("{:?}", z);
+    }
+    #[test]
+    fn test_value() {
+        // let mut value = lldb::SBValue::new().wrap();
+        let mut e = lldb::SBError::new().wrap();
+        let reg = std::ffi::CString::new("YES").expect("no null bytes expected");
+        // unsafe{value.pin_mut().SetValueFromCString1(reg.as_ptr(), e.pin_mut())};
+        unsafe{
+            e.pin_mut().SetErrorString(reg.as_ptr());
+        }
+        assert_eq!("YES", e.get_str());
     }
 }
