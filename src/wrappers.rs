@@ -129,16 +129,37 @@ pub trait Process: autocxx::PinMut<bindings::SBProcess> {
         self.pin_mut().GetThreadAtIndex(id).wrap()
     }
 
-    fn read_memory(&self, address: Address, size: usize) -> SBResult<Vec<u8>> {
-        Ok(vec![])
-    }
     // size_t ReadMemory(addr_t addr, void *buf, size_t size, lldb::SBError &error);
+    fn read_memory(&mut self, address: Address, size: usize) -> SBResult<Vec<u8>> {
+        let mut res = Vec::<u8>::new();
+        res.resize(size, 0);
+        let mut e = bindings::SBError::new().wrap();
+        let ret = unsafe {self.pin_mut().ReadMemory(address, res.as_mut_ptr() as _, size, e.pin_mut())};
+        if e.is_success() {
+            res.resize(ret, 0); // clip to whatever was read
+            return Ok(res);
+        }
+        Err(e)
+    }
 
     // size_t WriteMemory(addr_t addr, const void *buf, size_t size,
     // lldb::SBError &error);
 
-    // size_t ReadCStringFromMemory(addr_t addr, void *buf, size_t size,
-    // lldb::SBError &error);
+
+    // size_t ReadCStringFromMemory(addr_t addr, void *buf, size_t size, lldb::SBError &error);
+    fn read_cstring_from_memory(&mut self, address: Address, size: usize) -> SBResult<std::ffi::CString> {
+        let mut res = Vec::<u8>::new();
+        res.resize(size, 0);
+        let mut e = bindings::SBError::new().wrap();
+        let ret = unsafe {self.pin_mut().ReadCStringFromMemory(address, res.as_mut_ptr() as _, size, e.pin_mut())};
+        if e.is_success() {
+            let relevant = &res[0..ret];
+            let res = std::ffi::CString::new(relevant).expect("found null byte in string");
+            return Ok(res);
+        }
+        Err(e)
+    }
+
 }
 // This works:
 impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T {}
