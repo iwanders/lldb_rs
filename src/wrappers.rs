@@ -8,12 +8,10 @@ use std::pin::Pin;
 
 // Create these two in case we ever want the wrappers to use another container easily.
 type Carrier<T> = Pin<Box<T>>;
-// pub fn within<T: autocxx::WithinBox>(z: T) -> Wrapped<T::Inner> {
-// wrapped(z.within_box())
-// }
-// pub fn wrapped<T>(item: Carrier<T>) -> Wrapped<T> {
-// Wrapped { item }
-// }
+
+// Some more type aliases
+type SBResult<T> = Result<T, Wrapped<bindings::SBError>>;
+type Address = u64;
 
 // We need a wrapper type we own, such that we can implement external traits such as std::fmt::Debug
 // But our traits with convenience methods that are the safe API are implemented for anything with
@@ -33,6 +31,8 @@ type Carrier<T> = Pin<Box<T>>;
 // when the API isn't fully covered (which, it likely will never be).
 // And this entire system also avoids having to duplicate or use a macro to implement the
 // convenience methods for all three wrapping types.
+
+// Also in a RefCell to allow us to work around the API not being const corrrect.
 
 pub struct Wrapped<T> {
     item: Carrier<T>,
@@ -54,9 +54,7 @@ where
 {
     type Type = T::Output;
     fn wrap(self) -> Wrapped<<T as autocxx::prelude::New>::Output> {
-        Wrapped::<Self::Type> {
-            item: self.within_box(),
-        }
+        Wrapped::<Self::Type>::new(self.within_box())
     }
 }
 
@@ -71,6 +69,22 @@ impl<T> autocxx::PinMut<T> for Wrapped<T> {
     fn pin_mut(&mut self) -> Pin<&mut T> {
         self.item.as_mut()
     }
+}
+
+/// Super sketch function to go from const ref to mutable pin.
+/// This is necessary because the API is not const correct, but the implementation of traits like
+/// Display and Debug take a const reference.
+unsafe fn as_mut_ref<T: ?Sized>(z: &T) -> Pin<&mut T> {
+    // Obtain the raw pointer for this
+    let p_const = z as *const T;
+    // let p_mut = p_const.as_mut(); // Well, as_mut() is nightly.
+
+    // Transmute the thing, such that we get a const pointer.
+    let p_mut = std::mem::transmute::<_, *mut T>(p_const);
+
+    let mut_self = p_mut.as_mut().expect("never nullptr");
+    // Now, make it back into a reference and all that.
+    Pin::new_unchecked(mut_self)
 }
 
 /// Macro to implement pin_mut() for our types in UniquePtr<T> and Pin<Box<T>>
@@ -104,12 +118,27 @@ macro_rules! handle_box_and_uniqueptr {
 
 // Actual implementations now follow.
 
+handle_box_and_uniqueptr!(bindings::SBDebugger);
+pub trait Debugger: autocxx::PinMut<bindings::SBDebugger> {}
+impl<T> Debugger for T where T: autocxx::PinMut<bindings::SBDebugger> {}
+
 // https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBProcess.h
 handle_box_and_uniqueptr!(bindings::SBProcess);
 pub trait Process: autocxx::PinMut<bindings::SBProcess> {
     fn thread(&mut self, id: usize) -> Wrapped<bindings::SBThread> {
         self.pin_mut().GetThreadAtIndex(id).wrap()
     }
+
+    fn read_memory(&self, address: Address, size: usize) -> SBResult<Vec<u8>> {
+        Ok(vec![])
+    }
+    // size_t ReadMemory(addr_t addr, void *buf, size_t size, lldb::SBError &error);
+
+    // size_t WriteMemory(addr_t addr, const void *buf, size_t size,
+    // lldb::SBError &error);
+
+    // size_t ReadCStringFromMemory(addr_t addr, void *buf, size_t size,
+    // lldb::SBError &error);
 }
 // This works:
 impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T {}
@@ -133,7 +162,7 @@ impl<T> Thread for T where T: autocxx::PinMut<bindings::SBThread> {}
 // https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBFrame.h
 handle_box_and_uniqueptr!(bindings::SBFrame);
 pub trait Frame: autocxx::PinMut<bindings::SBFrame> {
-    fn find_register(&mut self, name: &str) -> Wrapped<bindings::SBValue>  {
+    fn find_register(&mut self, name: &str) -> Wrapped<bindings::SBValue> {
         let reg = std::ffi::CString::new(name).expect("no null bytes expected");
         unsafe { self.pin_mut().FindRegister(reg.as_ptr()) }.wrap()
     }
@@ -144,7 +173,6 @@ pub trait Frame: autocxx::PinMut<bindings::SBFrame> {
     }
 }
 impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> {}
-
 
 // Not a single method is const on SBValue, which makes it tricky to say... debug print, which
 // is a pretty big problem.
@@ -160,24 +188,11 @@ pub trait Value: autocxx::PinMut<bindings::SBValue> {
     }
 
     // This super sketchy method casts const to mutable...
-    fn get_value(&self) -> &str
-    {
-        // let str_ptr = self.as_ref().GetSummary();
-        // GetSummary is not a const method, but we are in a const method.
-        // Obtain the raw pointer for this
-        let p_const = self.as_ref() as *const bindings::SBValue;
-        println!("p_const: {p_const:?}");
-        // Well, as_mut() is nightly.
-        // let p_mut = p_const.as_mut();
-        // Transmute the thing, such that we get a const pointer.
-        let p_mut = unsafe {
-            std::mem::transmute::<_, *mut bindings::SBValue>(p_const)
-        };
-        println!("p_mut: {p_mut:?}");
+    fn get_value(&self) -> &str {
+        let mutref = unsafe { as_mut_ref(self.as_ref()) };
         unsafe {
-            let mut_self = p_mut.as_mut().expect("never nullptr");
             // Now, make it back into a reference and all that.
-            let z = Pin::new_unchecked(mut_self).GetValue();
+            let z = mutref.GetValue();
             if !z.is_null() {
                 return std::ffi::CStr::from_ptr(z).to_str().expect("ascii");
             }
@@ -186,6 +201,7 @@ pub trait Value: autocxx::PinMut<bindings::SBValue> {
     }
 }
 impl<T> Value for T where T: autocxx::PinMut<bindings::SBValue> {}
+// impl Value for Pin<&mut bindings::SBValue> {}
 impl std::fmt::Debug for Wrapped<bindings::SBValue> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.get_value())
@@ -334,7 +350,7 @@ mod test {
         let mut e = lldb::SBError::new().wrap();
         let reg = std::ffi::CString::new("YES").expect("no null bytes expected");
         // unsafe{value.pin_mut().SetValueFromCString1(reg.as_ptr(), e.pin_mut())};
-        unsafe{
+        unsafe {
             e.pin_mut().SetErrorString(reg.as_ptr());
         }
         assert_eq!("YES", e.get_str());
