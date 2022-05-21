@@ -172,6 +172,22 @@ impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T {}
 // Not sure which one is superior atm.
 
 // https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBThread.h
+handle_box_and_uniqueptr!(bindings::SBTarget);
+pub trait Target: autocxx::PinMut<bindings::SBTarget> {
+    // lldb::SBWatchpoint WatchAddress(lldb::addr_t addr, size_t size, bool read, bool write, SBError &error);
+    fn watch_address(&mut self, address: u64, size: usize, read: bool , write: bool) -> SBResult<Wrapped<bindings::SBWatchpoint>> {
+        let mut e = bindings::SBError::new().wrap();
+        let res = self.pin_mut().WatchAddress(address, size, read, write, e.pin_mut()).wrap();
+        if e.is_success() {
+            return Ok(res);
+        }
+        Err(e)
+    }
+
+}
+impl<T> Target for T where T: autocxx::PinMut<bindings::SBTarget> {}
+
+// https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBThread.h
 handle_box_and_uniqueptr!(bindings::SBThread);
 pub trait Thread: autocxx::PinMut<bindings::SBThread> {
     fn frame(&mut self, id: u32) -> Wrapped<bindings::SBFrame> {
@@ -199,13 +215,26 @@ impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> {}
 // is a pretty big problem.
 handle_box_and_uniqueptr!(bindings::SBValue);
 pub trait Value: autocxx::PinMut<bindings::SBValue> {
-    fn get_value_as_unsigned(&mut self) -> Result<u64, Box<Wrapped<bindings::SBError>>> {
+    fn get_value_unsigned(&mut self) -> Result<u64, Wrapped<bindings::SBError>> {
         let mut e = bindings::SBError::new().wrap();
         let res = self.pin_mut().GetValueAsUnsigned(e.pin_mut(), 0);
         if e.is_success() {
             return Ok(res);
         }
-        Err(Box::new(e))
+        Err(e)
+    }
+    fn get_value_u64(&mut self) -> Result<u64, Wrapped<bindings::SBError>>
+    {
+        self.get_value_unsigned()
+    }
+
+    fn get_value_usize(&mut self) -> Result<usize, Wrapped<bindings::SBError>> {
+        let mut e = bindings::SBError::new().wrap();
+        let res = self.pin_mut().GetValueAsUnsigned(e.pin_mut(), 0) as usize;
+        if e.is_success() {
+            return Ok(res);
+        }
+        Err(e)
     }
 
     // This super sketchy method casts const to mutable...
@@ -321,7 +350,7 @@ mod test {
         let mut t = p.thread(0);
         let mut f = t.frame(0);
         let mut reg = f.find_register("edx");
-        let v = reg.get_value_as_unsigned();
+        let v = reg.get_value_unsigned();
         assert!(v.is_err());
     }
 
@@ -332,7 +361,7 @@ mod test {
         let mut t = p.thread(0);
         let mut f = t.frame(0);
         let mut reg = f.find_register("edx");
-        let v = reg.get_value_as_unsigned();
+        let v = reg.get_value_unsigned();
         assert!(v.is_err());
     }
     #[test]
@@ -341,7 +370,7 @@ mod test {
         let mut t = p.thread(0);
         let mut f = t.frame(0);
         let mut reg = f.find_register("edx");
-        let v = reg.get_value_as_unsigned();
+        let v = reg.get_value_unsigned();
         assert!(v.is_err());
     }
 
@@ -352,7 +381,7 @@ mod test {
         let mut f = t.frame(0);
         let mut reg = f.find_register("edx");
         println!("{reg:?}");
-        let v = reg.get_value_as_unsigned();
+        let v = reg.get_value_unsigned();
         assert!(v.is_err());
     }
 
