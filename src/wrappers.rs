@@ -186,6 +186,12 @@ impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T {}
 handle_box_and_uniqueptr!(bindings::SBTarget);
 pub trait Target: autocxx::PinMut<bindings::SBTarget> {
     // lldb::SBWatchpoint WatchAddress(lldb::addr_t addr, size_t size, bool read, bool write, SBError &error);
+    /// Set a watch point at the specified location and size, check
+    /// [`Process::get_num_supported_hardware_watchpoints`] to confirm there's hardware watchpoints.
+    /// Size cannot be an arbitrary value either, for example 96 fails, possibly only register
+    /// widths?
+    /// I ran into 'sending gdb watchpoint failed' errors, which may have been caused by trying to
+    /// set a 8 byte wide watchpoint on a 32 bits process, using 4 byte width worked.
     fn watch_address(&mut self, address: u64, size: usize, read: bool , write: bool) -> SBResult<Wrapped<bindings::SBWatchpoint>> {
         let mut e = bindings::SBError::new().wrap();
         let res = self.pin_mut().WatchAddress(address, size, read, write, e.pin_mut()).wrap();
