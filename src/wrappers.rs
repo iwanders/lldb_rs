@@ -160,6 +160,17 @@ pub trait Process: autocxx::PinMut<bindings::SBProcess> {
         Err(e)
     }
 
+
+    // uint32_t GetNumSupportedHardwareWatchpoints(lldb::SBError &error) const;
+    fn get_num_supported_hardware_watchpoints(&mut self) -> SBResult<u32> {
+        let mut e = bindings::SBError::new().wrap();
+        let ret = unsafe {self.pin_mut().GetNumSupportedHardwareWatchpoints(e.pin_mut())};
+        if e.is_success() {
+            return Ok(ret);
+        }
+        Err(e)
+    }
+
 }
 // This works:
 impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T {}
@@ -224,6 +235,12 @@ pub trait Value: autocxx::PinMut<bindings::SBValue> {
         Err(e)
     }
     fn get_value_u64(&mut self) -> Result<u64, Wrapped<bindings::SBError>>
+    {
+        self.get_value_unsigned()
+    }
+
+    // For uniformity with GetValueAsUnsigned
+    fn get_value_as_unsigned(&mut self) -> Result<u64, Wrapped<bindings::SBError>>
     {
         self.get_value_unsigned()
     }
