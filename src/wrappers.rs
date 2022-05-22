@@ -182,7 +182,7 @@ impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T {}
 // impl Process for Pin<Box<bindings::SBProcess>>  {}
 // Not sure which one is superior atm.
 
-// https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBThread.h
+// https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBTarget.h
 handle_box_and_uniqueptr!(bindings::SBTarget);
 pub trait Target: autocxx::PinMut<bindings::SBTarget> {
     // lldb::SBWatchpoint WatchAddress(lldb::addr_t addr, size_t size, bool read, bool write, SBError &error);
@@ -199,6 +199,12 @@ pub trait Target: autocxx::PinMut<bindings::SBTarget> {
             return Ok(res);
         }
         Err(e)
+    }
+
+    // fn delete_watchpoint(&mut self, 
+    fn delete_watchpoint(&mut self, watchpoint_id: WatchpointId) -> bool
+    {
+        self.pin_mut().DeleteWatchpoint(watchpoint_id.0)
     }
 
 }
@@ -227,6 +233,23 @@ pub trait Frame: autocxx::PinMut<bindings::SBFrame> {
     }
 }
 impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> {}
+
+
+pub struct WatchpointId(i32);
+// https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBWatchpoint.h
+handle_box_and_uniqueptr!(bindings::SBWatchpoint);
+pub trait Watchpoint: autocxx::PinMut<bindings::SBWatchpoint> {
+    fn set_enabled(&mut self, state: bool)
+    {
+        self.pin_mut().SetEnabled(state);
+    }
+
+    fn get_id(&mut self) -> WatchpointId
+    {
+        WatchpointId(self.pin_mut().GetID())
+    }
+}
+impl<T> Watchpoint for T where T: autocxx::PinMut<bindings::SBWatchpoint> {}
 
 // Not a single method is const on SBValue, which makes it tricky to say... debug print, which
 // is a pretty big problem.
@@ -331,6 +354,11 @@ pub trait Event: autocxx::PinMut<bindings::SBEvent> {
     /// Retrieve the event_type for this event.
     fn event_type(&self) -> bindings::StateType {
         bindings::SBProcess::GetStateFromEvent(self.as_ref())
+    }
+
+    /// Not sure if this works, doesn't return true for my watchpoint events.
+    fn is_watchpoint(&self) -> bool {
+        bindings::SBWatchpoint::EventIsWatchpointEvent(self.as_ref())
     }
 }
 impl<T> Event for T where T: autocxx::PinMut<bindings::SBEvent> {}
