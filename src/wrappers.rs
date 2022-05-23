@@ -134,7 +134,10 @@ pub trait Process: autocxx::PinMut<bindings::SBProcess> {
         let mut res = Vec::<u8>::new();
         res.resize(size, 0);
         let mut e = bindings::SBError::new().wrap();
-        let ret = unsafe {self.pin_mut().ReadMemory(address, res.as_mut_ptr() as _, size, e.pin_mut())};
+        let ret = unsafe {
+            self.pin_mut()
+                .ReadMemory(address, res.as_mut_ptr() as _, size, e.pin_mut())
+        };
         if e.is_success() {
             res.resize(ret, 0); // clip to whatever was read
             return Ok(res);
@@ -145,13 +148,19 @@ pub trait Process: autocxx::PinMut<bindings::SBProcess> {
     // size_t WriteMemory(addr_t addr, const void *buf, size_t size,
     // lldb::SBError &error);
 
-
     // size_t ReadCStringFromMemory(addr_t addr, void *buf, size_t size, lldb::SBError &error);
-    fn read_cstring_from_memory(&mut self, address: Address, size: usize) -> SBResult<std::ffi::CString> {
+    fn read_cstring_from_memory(
+        &mut self,
+        address: Address,
+        size: usize,
+    ) -> SBResult<std::ffi::CString> {
         let mut res = Vec::<u8>::new();
         res.resize(size, 0);
         let mut e = bindings::SBError::new().wrap();
-        let ret = unsafe {self.pin_mut().ReadCStringFromMemory(address, res.as_mut_ptr() as _, size, e.pin_mut())};
+        let ret = unsafe {
+            self.pin_mut()
+                .ReadCStringFromMemory(address, res.as_mut_ptr() as _, size, e.pin_mut())
+        };
         if e.is_success() {
             let relevant = &res[0..ret];
             let res = std::ffi::CString::new(relevant).expect("found null byte in string");
@@ -160,17 +169,17 @@ pub trait Process: autocxx::PinMut<bindings::SBProcess> {
         Err(e)
     }
 
-
     // uint32_t GetNumSupportedHardwareWatchpoints(lldb::SBError &error) const;
     fn get_num_supported_hardware_watchpoints(&mut self) -> SBResult<u32> {
         let mut e = bindings::SBError::new().wrap();
-        let ret = unsafe {self.pin_mut().GetNumSupportedHardwareWatchpoints(e.pin_mut())};
+        let ret = self
+            .pin_mut()
+            .GetNumSupportedHardwareWatchpoints(e.pin_mut());
         if e.is_success() {
             return Ok(ret);
         }
         Err(e)
     }
-
 }
 // This works:
 impl<T: autocxx::PinMut<bindings::SBProcess>> Process for T {}
@@ -192,21 +201,28 @@ pub trait Target: autocxx::PinMut<bindings::SBTarget> {
     /// widths?
     /// I ran into 'sending gdb watchpoint failed' errors, which may have been caused by trying to
     /// set a 8 byte wide watchpoint on a 32 bits process, using 4 byte width worked.
-    fn watch_address(&mut self, address: u64, size: usize, read: bool , write: bool) -> SBResult<Wrapped<bindings::SBWatchpoint>> {
+    fn watch_address(
+        &mut self,
+        address: u64,
+        size: usize,
+        read: bool,
+        write: bool,
+    ) -> SBResult<Wrapped<bindings::SBWatchpoint>> {
         let mut e = bindings::SBError::new().wrap();
-        let res = self.pin_mut().WatchAddress(address, size, read, write, e.pin_mut()).wrap();
+        let res = self
+            .pin_mut()
+            .WatchAddress(address, size, read, write, e.pin_mut())
+            .wrap();
         if e.is_success() {
             return Ok(res);
         }
         Err(e)
     }
 
-    // fn delete_watchpoint(&mut self, 
-    fn delete_watchpoint(&mut self, watchpoint_id: WatchpointId) -> bool
-    {
+    // fn delete_watchpoint(&mut self,
+    fn delete_watchpoint(&mut self, watchpoint_id: WatchpointId) -> bool {
         self.pin_mut().DeleteWatchpoint(watchpoint_id.0)
     }
-
 }
 impl<T> Target for T where T: autocxx::PinMut<bindings::SBTarget> {}
 
@@ -234,18 +250,15 @@ pub trait Frame: autocxx::PinMut<bindings::SBFrame> {
 }
 impl<T> Frame for T where T: autocxx::PinMut<bindings::SBFrame> {}
 
-
 pub struct WatchpointId(i32);
 // https://github.com/llvm/llvm-project/blob/llvmorg-13.0.1/lldb/include/lldb/API/SBWatchpoint.h
 handle_box_and_uniqueptr!(bindings::SBWatchpoint);
 pub trait Watchpoint: autocxx::PinMut<bindings::SBWatchpoint> {
-    fn set_enabled(&mut self, state: bool)
-    {
+    fn set_enabled(&mut self, state: bool) {
         self.pin_mut().SetEnabled(state);
     }
 
-    fn get_id(&mut self) -> WatchpointId
-    {
+    fn get_id(&mut self) -> WatchpointId {
         WatchpointId(self.pin_mut().GetID())
     }
 }
@@ -263,14 +276,12 @@ pub trait Value: autocxx::PinMut<bindings::SBValue> {
         }
         Err(e)
     }
-    fn get_value_u64(&mut self) -> Result<u64, Wrapped<bindings::SBError>>
-    {
+    fn get_value_u64(&mut self) -> Result<u64, Wrapped<bindings::SBError>> {
         self.get_value_unsigned()
     }
 
     // For uniformity with GetValueAsUnsigned
-    fn get_value_as_unsigned(&mut self) -> Result<u64, Wrapped<bindings::SBError>>
-    {
+    fn get_value_as_unsigned(&mut self) -> Result<u64, Wrapped<bindings::SBError>> {
         self.get_value_unsigned()
     }
 

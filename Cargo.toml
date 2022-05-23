@@ -7,7 +7,7 @@ edition = "2021"
 # Apache-2.0 without exceptions.
 license = "Apache-2.0"
 build = "build.rs"
-
+autoexamples = false
 
 [dependencies]
 autocxx = "0.22.0"
@@ -22,3 +22,5 @@ miette = { version="4.3", features=["fancy"] } # optional but gives
 [lib]
 doctest = false
 
+[[example]]
+name = "track"
